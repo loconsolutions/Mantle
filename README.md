@@ -233,13 +233,13 @@ typedef enum : NSUInteger {
 }
 
 + (NSValueTransformer *)assigneeJSONTransformer {
-    return [NSValueTransformer mtl_JSONDictionaryTransformerWithModelClass:GHUser.class];
+    return [MTLJSONAdapter dictionaryTransformerWithModelClass:GHUser.class];
 }
 
 + (NSValueTransformer *)updatedAtJSONTransformer {
-    return [MTLValueTransformer reversibleTransformerWithForwardBlock:^(NSString *str) {
-        return [self.dateFormatter dateFromString:str];
-    } reverseBlock:^(NSDate *date) {
+    return [MTLValueTransformer transformerUsingForwardBlock:^id(NSString *dateString, BOOL *success, NSError *__autoreleasing *error) {
+        return [self.dateFormatter dateFromString:dateString];
+    } reverseBlock:^id(NSDate *date, BOOL *success, NSError *__autoreleasing *error) {
         return [self.dateFormatter stringFromDate:date];
     }];
 }
@@ -272,9 +272,9 @@ it easy to specify how new model data should be integrated.
 > There's no way to turn a `GHIssue` _back_ into JSON.
 
 This is where reversible transformers really come in handy. `+[MTLJSONAdapter
-JSONDictionaryFromModel:]` can transform any model object conforming to
+JSONDictionaryFromModel:error:]` can transform any model object conforming to
 `<MTLJSONSerializing>` back into a JSON dictionary. `+[MTLJSONAdapter
-JSONArrayForModels:]` is the same but turns an array of model objects into an JSON array of dictionaries.
+JSONArrayFromModels:error:]` is the same but turns an array of model objects into an JSON array of dictionaries.
 
 > If the interface of `GHIssue` changes down the road, existing archives might break.
 
@@ -294,7 +294,8 @@ XYUser *user = [MTLJSONAdapter modelOfClass:XYUser.class fromJSONDictionary:JSON
 ```
 
 ```objc
-NSDictionary *JSONDictionary = [MTLJSONAdapter JSONDictionaryFromModel:user];
+NSError *error = nil;
+NSDictionary *JSONDictionary = [MTLJSONAdapter JSONDictionaryFromModel:user error:&error];
 ```
 
 ### `+JSONKeyPathsByPropertyKey`
@@ -387,10 +388,9 @@ that are commonly represented as strings in JSON can be transformed to `NSDate`s
 like so:
 
 ```objc
-+ (NSValueTransformer *)createdAtJSONTransformer {
-    return [MTLValueTransformer reversibleTransformerWithForwardBlock:^(NSString *str) {
-        return [self.dateFormatter dateFromString:str];
-    } reverseBlock:^(NSDate *date) {
+    return [MTLValueTransformer transformerUsingForwardBlock:^id(NSString *dateString, BOOL *success, NSError *__autoreleasing *error) {
+        return [self.dateFormatter dateFromString:dateString];
+    } reverseBlock:^id(NSDate *date, BOOL *success, NSError *__autoreleasing *error) {
         return [self.dateFormatter stringFromDate:date];
     }];
 }
@@ -478,21 +478,13 @@ To add Mantle to your application:
 
  1. Add the Mantle repository as a submodule of your application's repository.
  1. Run `script/bootstrap` from within the Mantle folder.
- 1. Drag and drop `Mantle.xcodeproj` into your application's Xcode project or
-    workspace.
- 1. On the "Build Phases" tab of your application target, add Mantle to the
-    "Link Binary With Libraries" phase.
-    * **On iOS**, add `libMantle.a`.
-    * **On OS X**, add `Mantle.framework`. Mantle must also be added to any
-      "Copy Frameworks" build phase. If you don't already have one, simply add a
-      "Copy Files" build phase and target the "Frameworks" destination.
- 1. Add `"$(BUILD_ROOT)/../IntermediateBuildFilesPath/UninstalledProducts/include" $(inherited)`
-    to the "Header Search Paths" build setting (this is only
-    necessary for archive builds, but it has no negative effect otherwise).
- 1. **For iOS targets**, add `-ObjC` to the "Other Linker Flags" build setting.
- 1. **If you added Mantle to a project (not a workspace)**, you will also need
-    to add the appropriate Mantle target to the "Target Dependencies" of your
-    application.
+ 1. Drag and drop `Mantle.xcodeproj` into your application's Xcode project. Unfortunately, an [Xcode bug](http://www.openradar.appspot.com/19676555) means you should probably not add it to a workspace.
+ 1. On the "General" tab of your application target, add `Mantle.framework` to the "Embedded Binaries".
+
+[Carthage](https://github.com/Carthage/Carthage) users can simply add Mantle to their `Cartfile`:
+```
+github "Mantle/Mantle"
+```
 
 If you would prefer to use [CocoaPods](http://cocoapods.org), there are some
 [Mantle podspecs](https://github.com/CocoaPods/Specs/tree/master/Specs/Mantle) that
